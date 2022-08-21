@@ -1,6 +1,6 @@
 # Paints
 
-My Bevy Jam #2 game.
+My [Bevy Jam #2](https://itch.io/jam/bevy-jam-2) game.
 
 # Bevy GitHub CI Template
 
