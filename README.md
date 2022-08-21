@@ -1,3 +1,7 @@
+# Paints
+
+My Bevy Jam #2 game.
+
 # Bevy GitHub CI Template
 
 This repo show how to setup CI on a github project for Bevy.
