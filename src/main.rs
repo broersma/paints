@@ -1,16 +1,11 @@
-use bevy::prelude::*;
+use bevy::prelude::{DefaultPlugins, App};
+
+mod paints;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
+        .add_plugin(paints::PaintsPlugin)
+        .add_system(bevy::window::close_on_esc)
         .run();
-}
-
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::default());
-    commands.spawn_bundle(SpriteBundle {
-        texture: asset_server.load("icon.png"),
-        ..Default::default()
-    });
 }
