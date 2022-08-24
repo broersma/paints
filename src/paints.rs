@@ -41,17 +41,14 @@ struct LabelTexture(Handle<Image>);
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, windows: Res<Windows>) {
     commands.spawn_bundle(Camera2dBundle::default());
 
-    commands
-        .spawn_bundle(
-            TextBundle::from_section(
-                "Paints (press LMB!)",
-                TextStyle {
-                    font: asset_server.load("fonts/savate-regular.otf"),
-                    font_size: 64.0,
-                    color: Color::WHITE,
-                },
-            ),
-        );
+    commands.spawn_bundle(TextBundle::from_section(
+        "Paints (press LMB!)",
+        TextStyle {
+            font: asset_server.load("fonts/savate-regular.otf"),
+            font_size: 64.0,
+            color: Color::WHITE,
+        },
+    ));
 
     let bucket_texture = BucketTexture(asset_server.load("bucket.png"));
     let paint_texture = PaintTexture(asset_server.load("paint.png"));

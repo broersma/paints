@@ -1,4 +1,4 @@
-use bevy::prelude::{DefaultPlugins, App};
+use bevy::prelude::{App, DefaultPlugins};
 
 mod paints;
 
