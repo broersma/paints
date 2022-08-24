@@ -132,7 +132,7 @@ fn spawn_paint_bucket(
 
     commands
         .spawn_bundle(SpriteBundle {
-            texture: bucket_texture.clone(),
+            texture: bucket_texture,
             transform: Transform::from_xyz(bird_x, bird_y, 0.),
             ..Default::default()
         })
@@ -151,7 +151,7 @@ fn spawn_paint_bucket(
         .with_children(|parent| {
             parent
                 .spawn_bundle(SpriteBundle {
-                    texture: paint_texture.clone(),
+                    texture: paint_texture,
                     ..Default::default()
                 })
                 .insert(Paint {
@@ -166,7 +166,7 @@ fn spawn_paint_bucket(
 
             parent
                 .spawn_bundle(SpriteBundle {
-                    texture: label_texture.clone(),
+                    texture: label_texture,
                     ..Default::default()
                 })
                 .insert(Paint {
