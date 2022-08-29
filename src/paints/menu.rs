@@ -1,7 +1,7 @@
 use bevy::app::AppExit;
 use bevy::prelude::*;
 
-use super::AppState;
+use super::{AppState, GameFont, IconTexture};
 
 pub struct PaintsPlugin;
 
@@ -20,17 +20,23 @@ impl Plugin for PaintsPlugin {
 #[derive(Component)]
 pub struct MenuTitle;
 
-fn on_enter(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn on_enter(mut commands: Commands, game_font: Res<GameFont>, icon_texture: Res<IconTexture>) {
     commands
         .spawn_bundle(TextBundle::from_section(
-            "Main menu\n[Space] to play,\n[Esc] to exit",
+            "[Space] to play,\n[Esc] to exit",
             TextStyle {
-                font: asset_server.load("fonts/savate-regular.otf"),
+                font: game_font.clone_weak(),
                 font_size: 64.0,
                 color: Color::WHITE,
             },
         ))
         .insert(MenuTitle);
+
+    commands.spawn_bundle(SpriteBundle {
+        texture: icon_texture.clone_weak(),
+        ..Default::default()
+    })
+    .insert(MenuTitle);
 }
 
 fn on_update(

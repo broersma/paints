@@ -27,25 +27,18 @@ pub struct BucketTexture(Handle<Image>);
 pub struct PaintTexture(Handle<Image>);
 #[derive(Deref)]
 pub struct LabelTexture(Handle<Image>);
+#[derive(Deref)]
+pub struct IconTexture(Handle<Image>);
 
-#[derive(Component)]
-pub struct GameTitle;
+#[derive(Deref)]
+pub struct GameFont(Handle<Font>);
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(Camera2dBundle::default());
 
-    commands
-        .spawn_bundle(TextBundle::from_section(
-            "Paints",
-            TextStyle {
-                font: asset_server.load("fonts/savate-regular.otf"),
-                font_size: 128.0,
-                color: Color::WHITE,
-            },
-        ))
-        .insert(GameTitle);
-
+    commands.insert_resource(IconTexture(asset_server.load("icon.png")));
     commands.insert_resource(BucketTexture(asset_server.load("bucket.png")));
     commands.insert_resource(PaintTexture(asset_server.load("paint.png")));
     commands.insert_resource(LabelTexture(asset_server.load("label.png")));
+    commands.insert_resource(GameFont(asset_server.load("fonts/savate-regular.otf")));
 }
