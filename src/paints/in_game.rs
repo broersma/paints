@@ -1,17 +1,29 @@
 use bevy::prelude::*;
 use bevy::time::FixedTimestep;
 
+use rand::random;
+
 use super::{AppState, BucketTexture, GameFont, LabelTexture, PaintTexture};
 
 const TIME_STEP: f32 = 1.0 / 60.0;
-const PAINT_BUCKET_WIDTH: f32 = 315.;
+const PAINT_BUCKET_IMAGE_WIDTH: f32 = 315.;
+const PAINT_BUCKET_WIDTH: f32 = 168.;
+// TODO: const PAINT_BUCKET_SPEED: f32 = 150.;
+const PAINT_BUCKET_SPEED: f32 = 300.;
+const PAINT_BUCKET_SPAWN_DELAY: f32 = PAINT_BUCKET_WIDTH / PAINT_BUCKET_SPEED * 2.;
+
+// TODO: const PAINT_BUCKET_SPAWN_MAX: u32 = 50;
+const PAINT_BUCKET_SPAWN_MAX: u32 = 5;
 
 pub struct PaintsPlugin;
 
 impl Plugin for PaintsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(paint_bucket_coloring_system)
-            .add_system(color_changing_system)
+        app.init_resource::<GameState>()
+            .insert_resource(GameState {
+                time_since_last_paint_bucket_spawn: PAINT_BUCKET_SPAWN_DELAY,
+                ..Default::default()
+            })
             .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(on_enter))
             .add_system_set(SystemSet::on_update(AppState::InGame).with_system(on_update))
             .add_system_set(
@@ -19,7 +31,17 @@ impl Plugin for PaintsPlugin {
                     .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
                     .with_system(on_fixed_update),
             )
-            .init_resource::<GameState>()
+            .add_system_set(
+                SystemSet::on_update(AppState::InGame).with_system(paint_sprite_coloring_system),
+            )
+            .add_system_set(
+                SystemSet::on_update(AppState::InGame)
+                    .with_system(paint_label_sprite_coloring_system),
+            )
+            .add_system_set(
+                SystemSet::on_update(AppState::InGame).with_system(paint_bucket_spawner),
+            )
+            .add_system_set(SystemSet::on_update(AppState::InGame).with_system(paint_bucket_scorer))
             .add_system_set(SystemSet::on_exit(AppState::InGame).with_system(on_exit));
     }
 }
@@ -31,22 +53,41 @@ struct Moving {
 }
 
 #[derive(Component)]
+struct PaintLabel {
+    color: Color,
+}
+#[derive(Component)]
 struct Paint {
     color: Color,
 }
 
 #[derive(Component)]
+struct PaintBucket;
+
+#[derive(Component)]
 pub struct PausedTitle;
+#[derive(Component)]
+pub struct ScoreTitle;
 
 #[derive(Default)]
 pub struct GameState {
     is_paused: bool,
+    time_since_last_paint_bucket_spawn: f32,
+    buckets_spawned: u32,
+    buckets_scored: u32,
+    score: f32,
+    show_score: bool,
 }
 
 fn on_enter(mut commands: Commands, mut game_state: ResMut<GameState>, game_font: Res<GameFont>) {
     // TODO: spawn paint nozzle
 
     game_state.is_paused = false;
+    game_state.time_since_last_paint_bucket_spawn = PAINT_BUCKET_SPAWN_DELAY;
+    game_state.buckets_spawned = 0;
+    game_state.buckets_scored = 0;
+    game_state.score = 0.;
+    game_state.show_score = false;
 
     commands
         .spawn_bundle(TextBundle::from_section(
@@ -59,6 +100,18 @@ fn on_enter(mut commands: Commands, mut game_state: ResMut<GameState>, game_font
         ))
         .insert(Visibility { is_visible: false })
         .insert(PausedTitle);
+
+    commands
+        .spawn_bundle(TextBundle::from_section(
+            "Score: 000\n[Return] to go to main menu",
+            TextStyle {
+                font: game_font.clone_weak(),
+                font_size: 64.0,
+                color: Color::WHITE,
+            },
+        ))
+        .insert(Visibility { is_visible: false })
+        .insert(ScoreTitle);
 }
 
 fn on_update(
@@ -70,29 +123,36 @@ fn on_update(
     bucket_texture: Res<BucketTexture>,
     paint_texture: Res<PaintTexture>,
     label_texture: Res<LabelTexture>,
-    mut query: Query<&mut Visibility, With<PausedTitle>>,
+    mut query: Query<&mut Visibility, (With<PausedTitle>, Without<ScoreTitle>)>,
+    mut score_query: Query<(&mut Visibility, &mut Text), (With<ScoreTitle>, Without<PausedTitle>)>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::Escape) {
-        game_state.is_paused = !game_state.is_paused;
-        query.single_mut().is_visible = game_state.is_paused;
-        keyboard_input.reset(KeyCode::Return);
-    } else if !game_state.is_paused && keyboard_input.just_pressed(KeyCode::Space) {
-        spawn_paint_bucket(
-            &mut commands,
-            &windows,
-            bucket_texture.clone_weak(),
-            paint_texture.clone_weak(),
-            label_texture.clone_weak(),
-        );
-    } else if game_state.is_paused && keyboard_input.just_pressed(KeyCode::Return) {
-        app_state.set(AppState::MainMenu).unwrap();
-        keyboard_input.reset(KeyCode::Return);
+    if game_state.show_score {
+        let (mut score_visibility, mut text) = score_query.single_mut();
+        score_visibility.is_visible = true;
+        let final_score = game_state.score * 1000.;
+        text.sections[0].value = format!("Score: {final_score:06.0}\n[Return] to go to main menu");
+        if keyboard_input.just_pressed(KeyCode::Return) {
+            app_state.set(AppState::MainMenu).unwrap();
+            keyboard_input.reset(KeyCode::Return);
+        }
+    } else {
+        if keyboard_input.just_pressed(KeyCode::Escape) {
+            game_state.is_paused = !game_state.is_paused;
+            query.single_mut().is_visible = game_state.is_paused;
+            keyboard_input.reset(KeyCode::Return);
+        } else if game_state.is_paused && keyboard_input.just_pressed(KeyCode::Return) {
+            app_state.set(AppState::MainMenu).unwrap();
+            keyboard_input.reset(KeyCode::Return);
+        }
     }
 }
 
-fn on_exit(mut commands: Commands, query: Query<Entity, Or<(With<Paint>, With<PausedTitle>)>>) {
+fn on_exit(
+    mut commands: Commands,
+    query: Query<Entity, Or<(With<PaintBucket>, With<PausedTitle>, With<ScoreTitle>)>>,
+) {
     for entity in query.iter() {
-        commands.entity(entity).despawn();
+        commands.entity(entity).despawn_recursive()
     }
 }
 
@@ -107,62 +167,114 @@ fn on_fixed_update(game_state: Res<GameState>, mut query: Query<(&Moving, &mut T
     }
 }
 
-fn paint_bucket_coloring_system(mut query: Query<(&mut Sprite, &Paint)>) {
+fn paint_bucket_spawner(
+    mut game_state: ResMut<GameState>,
+    mut commands: Commands,
+    time: Res<Time>,
+    windows: Res<Windows>,
+    bucket_texture: Res<BucketTexture>,
+    paint_texture: Res<PaintTexture>,
+    label_texture: Res<LabelTexture>,
+) {
+    if !game_state.is_paused {
+        game_state.time_since_last_paint_bucket_spawn += time.delta_seconds()
+    }
+
+    if game_state.buckets_spawned < PAINT_BUCKET_SPAWN_MAX
+        && game_state.time_since_last_paint_bucket_spawn > PAINT_BUCKET_SPAWN_DELAY
+    {
+        spawn_paint_bucket(
+            &mut commands,
+            &windows,
+            &time,
+            bucket_texture.clone_weak(),
+            paint_texture.clone_weak(),
+            label_texture.clone_weak(),
+        );
+        game_state.time_since_last_paint_bucket_spawn -= PAINT_BUCKET_SPAWN_DELAY;
+        game_state.buckets_spawned += 1;
+    }
+}
+
+fn paint_bucket_scorer(
+    mut game_state: ResMut<GameState>,
+    mut commands: Commands,
+    windows: Res<Windows>,
+    paint_bucket_query: Query<(Entity, &Transform, &Children), With<PaintBucket>>,
+    paint_query: Query<&Paint>,
+    paint_label_query: Query<&PaintLabel>,
+) {
+    let window = windows.primary();
+    // get the properties of each squad
+    for (entity, transform, children) in paint_bucket_query.iter() {
+        if transform.translation.x > (window.width() as f32 / 2.) + PAINT_BUCKET_WIDTH * 0.5 {
+            // TODO: this is bad Rust...
+            let mut paint_result = Err(bevy::ecs::query::QueryEntityError::NoSuchEntity(entity));
+            let mut paint_label_result =
+                Err(bevy::ecs::query::QueryEntityError::NoSuchEntity(entity));
+            for &child in children.iter() {
+                if paint_query.get(child).is_ok() {
+                    paint_result = paint_query.get(child);
+                }
+
+                if paint_label_query.get(child).is_ok() {
+                    paint_label_result = paint_label_query.get(child);
+                }
+            }
+
+            if let (Ok(paint), Ok(paint_label)) = (paint_result, paint_label_result) {
+                game_state.score += ((paint.color.r() - paint_label.color.r()).powf(2.)
+                    + (paint.color.g() - paint_label.color.g()).powf(2.)
+                    + (paint.color.b() - paint_label.color.b()).powf(2.))
+                .sqrt()
+                    / (3f32).sqrt();
+                    game_state.buckets_scored += 1;
+
+                commands.entity(entity).despawn_recursive();
+
+                if game_state.buckets_scored == PAINT_BUCKET_SPAWN_MAX {
+                    game_state.show_score = true;
+                }
+            }
+        }
+    }
+}
+
+fn paint_sprite_coloring_system(mut query: Query<(&mut Sprite, &Paint)>) {
     for (mut sprite, paint) in query.iter_mut() {
         sprite.color = paint.color;
     }
 }
 
-fn color_changing_system(
-    game_state: Res<GameState>,
-    time: Res<Time>,
-    mut query: Query<(&mut Paint, &Name)>,
-) {
-    let mut seconds = time.seconds_since_startup() as f32;
-
-    if !game_state.is_paused {
-        for (mut paint, name) in query.iter_mut() {
-            let sum_of_bytes: f32 = name.bytes().fold(0u8, |a, b| a.wrapping_add(b)).into();
-            seconds += sum_of_bytes;
-            paint.color = Color::Rgba {
-                red: (1.25 * seconds).sin() / 2.0 + 0.5,
-                green: (0.75 * seconds).sin() / 2.0 + 0.5,
-                blue: (0.50 * seconds).sin() / 2.0 + 0.5,
-                alpha: 1.0,
-            };
-        }
+fn paint_label_sprite_coloring_system(mut query: Query<(&mut Sprite, &PaintLabel)>) {
+    for (mut sprite, paint) in query.iter_mut() {
+        sprite.color = paint.color;
     }
 }
 
 fn spawn_paint_bucket(
     commands: &mut Commands,
     windows: &Windows,
+    time: &Time,
     bucket_texture: Handle<Image>,
     paint_texture: Handle<Image>,
     label_texture: Handle<Image>,
 ) {
     let window = windows.primary();
-    let bird_x = (window.width() as f32 / -2.) - PAINT_BUCKET_WIDTH * 0.5;
-    let bird_y = 0.;
+    let bucket_x = (window.width() as f32 / -2.) - PAINT_BUCKET_WIDTH * 0.5;
+    let bucket_y = 0.;
+    let seconds = time.seconds_since_startup() as f32;
 
     commands
         .spawn_bundle(SpriteBundle {
             texture: bucket_texture,
-            transform: Transform::from_xyz(bird_x, bird_y, 0.),
+            transform: Transform::from_xyz(bucket_x, bucket_y, 0.),
             ..Default::default()
         })
+        .insert(PaintBucket)
         .insert(Moving {
-            movement_speed: 100.0, // metres per second
+            movement_speed: PAINT_BUCKET_SPEED, // metres per second
         })
-        .insert(Paint {
-            color: Color::Rgba {
-                red: 0.0,
-                green: 1.0,
-                blue: 1.0,
-                alpha: 1.0,
-            },
-        })
-        .insert(Name::new("Paint bucket"))
         .with_children(|parent| {
             parent
                 .spawn_bundle(SpriteBundle {
@@ -172,26 +284,24 @@ fn spawn_paint_bucket(
                 .insert(Paint {
                     color: Color::Rgba {
                         red: 1.0,
-                        green: 0.0,
+                        green: 1.0,
                         blue: 1.0,
                         alpha: 1.0,
                     },
-                })
-                .insert(Name::new("Paint"));
+                });
 
             parent
                 .spawn_bundle(SpriteBundle {
                     texture: label_texture,
                     ..Default::default()
                 })
-                .insert(Paint {
+                .insert(PaintLabel {
                     color: Color::Rgba {
-                        red: 1.0,
-                        green: 0.0,
-                        blue: 0.0,
+                        red: (1.25 * seconds + 10. * random::<f32>()).sin() / 2.0 + 0.5,
+                        green: (0.75 * seconds + 10. * random::<f32>()).sin() / 2.0 + 0.5,
+                        blue: (0.50 * seconds + 10. * random::<f32>()).sin() / 2.0 + 0.5,
                         alpha: 1.0,
                     },
-                })
-                .insert(Name::new("Label"));
+                });
         });
 }

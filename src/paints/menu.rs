@@ -32,11 +32,12 @@ fn on_enter(mut commands: Commands, game_font: Res<GameFont>, icon_texture: Res<
         ))
         .insert(MenuTitle);
 
-    commands.spawn_bundle(SpriteBundle {
-        texture: icon_texture.clone_weak(),
-        ..Default::default()
-    })
-    .insert(MenuTitle);
+    commands
+        .spawn_bundle(SpriteBundle {
+            texture: icon_texture.clone_weak(),
+            ..Default::default()
+        })
+        .insert(MenuTitle);
 }
 
 fn on_update(
