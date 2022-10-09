@@ -29,6 +29,8 @@ pub struct PaintTexture(Handle<Image>);
 pub struct LabelTexture(Handle<Image>);
 #[derive(Deref)]
 pub struct IconTexture(Handle<Image>);
+#[derive(Deref)]
+pub struct NozzleTexture(Handle<Image>);
 
 #[derive(Deref)]
 pub struct GameFont(Handle<Font>);
@@ -40,5 +42,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(BucketTexture(asset_server.load("bucket.png")));
     commands.insert_resource(PaintTexture(asset_server.load("paint.png")));
     commands.insert_resource(LabelTexture(asset_server.load("label.png")));
+    commands.insert_resource(NozzleTexture(asset_server.load("nozzle.png")));
     commands.insert_resource(GameFont(asset_server.load("fonts/savate-regular.otf")));
 }

@@ -3,7 +3,7 @@ use bevy::time::FixedTimestep;
 
 use rand::random;
 
-use super::{AppState, BucketTexture, GameFont, LabelTexture, PaintTexture};
+use super::{AppState, BucketTexture, GameFont, LabelTexture, NozzleTexture, PaintTexture};
 
 const TIME_STEP: f32 = 1.0 / 60.0;
 const PAINT_BUCKET_IMAGE_WIDTH: f32 = 315.;
@@ -69,6 +69,9 @@ pub struct PausedTitle;
 #[derive(Component)]
 pub struct ScoreTitle;
 
+#[derive(Component)]
+struct PaintNozzle;
+
 #[derive(Default)]
 pub struct GameState {
     is_paused: bool,
@@ -79,9 +82,13 @@ pub struct GameState {
     show_score: bool,
 }
 
-fn on_enter(mut commands: Commands, mut game_state: ResMut<GameState>, game_font: Res<GameFont>) {
-    // TODO: spawn paint nozzle
-
+fn on_enter(
+    mut commands: Commands,
+    mut game_state: ResMut<GameState>,
+    game_font: Res<GameFont>,
+    nozzle_texture: Res<NozzleTexture>,
+    label_texture: Res<LabelTexture>,
+) {
     game_state.is_paused = false;
     game_state.time_since_last_paint_bucket_spawn = PAINT_BUCKET_SPAWN_DELAY;
     game_state.buckets_spawned = 0;
@@ -112,6 +119,45 @@ fn on_enter(mut commands: Commands, mut game_state: ResMut<GameState>, game_font
         ))
         .insert(Visibility { is_visible: false })
         .insert(ScoreTitle);
+
+    spawn_paint_nozzle(
+        &mut commands,
+        nozzle_texture.clone_weak(),
+        label_texture.clone_weak(),
+        Color::Rgba {
+            red: 1.,
+            green: 0.,
+            blue: 0.,
+            alpha: 1.,
+        },
+        -200.,
+    );
+
+    spawn_paint_nozzle(
+        &mut commands,
+        nozzle_texture.clone_weak(),
+        label_texture.clone_weak(),
+        Color::Rgba {
+            red: 0.,
+            green: 1.,
+            blue: 0.,
+            alpha: 1.,
+        },
+        0.,
+    );
+
+    spawn_paint_nozzle(
+        &mut commands,
+        nozzle_texture.clone_weak(),
+        label_texture.clone_weak(),
+        Color::Rgba {
+            red: 0.,
+            green: 0.,
+            blue: 1.,
+            alpha: 1.,
+        },
+        200.,
+    );
 }
 
 fn on_update(
@@ -149,7 +195,7 @@ fn on_update(
 
 fn on_exit(
     mut commands: Commands,
-    query: Query<Entity, Or<(With<PaintBucket>, With<PausedTitle>, With<ScoreTitle>)>>,
+    query: Query<Entity, Or<(With<PaintBucket>,With<PaintNozzle>, With<PausedTitle>, With<ScoreTitle>)>>,
 ) {
     for entity in query.iter() {
         commands.entity(entity).despawn_recursive()
@@ -228,7 +274,7 @@ fn paint_bucket_scorer(
                     + (paint.color.b() - paint_label.color.b()).powf(2.))
                 .sqrt()
                     / (3f32).sqrt();
-                    game_state.buckets_scored += 1;
+                game_state.buckets_scored += 1;
 
                 commands.entity(entity).despawn_recursive();
 
@@ -303,5 +349,33 @@ fn spawn_paint_bucket(
                         alpha: 1.0,
                     },
                 });
+        });
+}
+
+fn spawn_paint_nozzle(
+    commands: &mut Commands,
+    nozzle_texture: Handle<Image>,
+    label_texture: Handle<Image>,
+    color: Color,
+    position_x: f32,
+) {
+    let nozzle_x = position_x;
+    let nozzle_y = 200.;
+
+    commands
+        .spawn_bundle(SpriteBundle {
+            texture: nozzle_texture,
+            transform: Transform::from_xyz(nozzle_x, nozzle_y, 0.),
+            ..Default::default()
+        })
+        .insert(PaintNozzle)
+        .with_children(|parent| {
+            parent
+                .spawn_bundle(SpriteBundle {
+                    texture: label_texture,
+                    transform: Transform::from_xyz(0., 0., 1.),
+                    ..Default::default()
+                })
+                .insert(PaintLabel { color: color });
         });
 }
