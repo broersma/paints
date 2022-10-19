@@ -253,37 +253,59 @@ fn paint_bucket_scorer(
     let window = windows.primary();
     // get the properties of each squad
     for (entity, transform, children) in paint_bucket_query.iter() {
-        if transform.translation.x > (window.width() as f32 / 2.) + PAINT_BUCKET_WIDTH * 0.5 {
-            // TODO: this is bad Rust...
-            let mut paint_result = Err(bevy::ecs::query::QueryEntityError::NoSuchEntity(entity));
-            let mut paint_label_result =
-                Err(bevy::ecs::query::QueryEntityError::NoSuchEntity(entity));
-            for &child in children.iter() {
-                if paint_query.get(child).is_ok() {
-                    paint_result = paint_query.get(child);
-                }
+        if paint_bucket_went_off_screen(transform, window) {
+            let paint_and_label = get_paint_and_paint_label(entity, children, &paint_query, &paint_label_query);
 
-                if paint_label_query.get(child).is_ok() {
-                    paint_label_result = paint_label_query.get(child);
-                }
-            }
-
-            if let (Ok(paint), Ok(paint_label)) = (paint_result, paint_label_result) {
-                game_state.score += ((paint.color.r() - paint_label.color.r()).powf(2.)
-                    + (paint.color.g() - paint_label.color.g()).powf(2.)
-                    + (paint.color.b() - paint_label.color.b()).powf(2.))
-                .sqrt()
-                    / (3f32).sqrt();
+            if let Some((paint, paint_label)) = paint_and_label {
+                game_state.score += calculate_score(paint, paint_label);
                 game_state.buckets_scored += 1;
 
+                // despawn the paint bucket
                 commands.entity(entity).despawn_recursive();
 
+                // did we score all paint buckets?
                 if game_state.buckets_scored == PAINT_BUCKET_SPAWN_MAX {
                     game_state.show_score = true;
                 }
             }
         }
     }
+}
+
+fn get_paint_and_paint_label<'a>(entity: Entity, children: &'a Children, paint_query: &'a Query<&Paint>, paint_label_query: &'a Query<&PaintLabel>) -> Option<(&'a Paint, &'a PaintLabel)> {
+    
+    // TODO: this is bad Rust...
+
+    let mut paint_result = Err(bevy::ecs::query::QueryEntityError::NoSuchEntity(entity));
+    let mut paint_label_result =
+        Err(bevy::ecs::query::QueryEntityError::NoSuchEntity(entity));
+    for &child in children.iter() {
+        if paint_query.get(child).is_ok() {
+            paint_result = paint_query.get(child);
+        }
+
+        if paint_label_query.get(child).is_ok() {
+            paint_label_result = paint_label_query.get(child);
+        }
+    }
+    
+    if let (Ok(paint), Ok(paint_label)) = (paint_result, paint_label_result) {
+        Some((paint, paint_label))
+    } else {
+        None
+    }
+}
+
+fn calculate_score(paint: &Paint, paint_label: &PaintLabel) -> f32 {
+    ((paint.color.r() - paint_label.color.r()).powf(2.)
+        + (paint.color.g() - paint_label.color.g()).powf(2.)
+        + (paint.color.b() - paint_label.color.b()).powf(2.))
+    .sqrt()
+        / (3f32).sqrt()
+}
+
+fn paint_bucket_went_off_screen(transform: &Transform, window: &Window) -> bool {
+    transform.translation.x > (window.width() as f32 / 2.) + PAINT_BUCKET_WIDTH * 0.5
 }
 
 fn paint_sprite_coloring_system(mut query: Query<(&mut Sprite, &Paint)>) {
